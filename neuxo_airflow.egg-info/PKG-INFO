@@ -1,0 +1,32 @@
+Metadata-Version: 2.4
+Name: neuxo-airflow
+Version: 0.1.0
+Summary: Neuxo Airflow Integration
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: apache-airflow==2.10.5
+Requires-Dist: pymssql==2.3.0
+Requires-Dist: apache-airflow-providers-microsoft-mssql==3.9.1
+Requires-Dist: pyodbc>=5.2.0
+Requires-Dist: apache-airflow-providers-slack==8.9.0
+Requires-Dist: selenium==4.8.0
+Requires-Dist: selenium-wire>=5.1.0
+Requires-Dist: selenium-recaptcha-solver>=1.9.0
+Requires-Dist: stripe>=12.0.1
+Requires-Dist: braintree>=4.35.0
+Requires-Dist: blinker==1.7.0
+Requires-Dist: beautifulsoup4>=4.13.4
+Requires-Dist: openpyxl>=3.1.5
+Requires-Dist: pandas>=2.3.3
+Requires-Dist: scikit-learn>=1.7.2
+Requires-Dist: pyotp>=2.9.0
+Requires-Dist: pyzbar>=0.1.9
+Requires-Dist: pillow==10.4.0
+Requires-Dist: google-auth>=2.39.0
+Requires-Dist: google-auth-oauthlib>=1.2.2
+Requires-Dist: google-api-python-client>=2.168.0
+Requires-Dist: confluent-kafka>=2.11.1
+Requires-Dist: xmltodict==0.15.0
+Requires-Dist: pymysql
+Provides-Extra: dev
+Requires-Dist: prek>=0.2.0; extra == "dev"

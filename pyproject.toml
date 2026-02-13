@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuxo-airflow"
+version = "0.1.0"
+description = "Neuxo Airflow Integration"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "apache-airflow==2.10.5",
+
+  "pymssql==2.3.0",
+  "apache-airflow-providers-microsoft-mssql==3.9.1",
+  "pyodbc>=5.2.0",
+
+  "apache-airflow-providers-slack==8.9.0",
+
+  "selenium==4.8.0",
+  "selenium-wire>=5.1.0",
+  "selenium-recaptcha-solver>=1.9.0",
+
+  "stripe>=12.0.1",
+  "braintree>=4.35.0",
+
+  "blinker==1.7.0",
+  "beautifulsoup4>=4.13.4",
+  "openpyxl>=3.1.5",
+  "pandas>=2.3.3",
+  "scikit-learn>=1.7.2",
+
+  "pyotp>=2.9.0",
+  "pyzbar>=0.1.9",
+  "pillow==10.4.0",
+
+  "google-auth>=2.39.0",
+  "google-auth-oauthlib>=1.2.2",
+  "google-api-python-client>=2.168.0",
+
+  "confluent-kafka>=2.11.1",
+  "xmltodict==0.15.0",
+  "pymysql"
+]
+
+[project.optional-dependencies]
+dev = [
+  "prek>=0.2.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["neuxo_airflow*"]
+exclude = ["tests*", "dags*"]
