@@ -1,1 +1,4 @@
 test_quoc.py
+airflow/logs/
+plugin/credentials/
+airflow/airflow.db
