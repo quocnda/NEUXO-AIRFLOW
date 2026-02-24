@@ -13,7 +13,7 @@ export AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8010
 echo "====================================="
 echo " Starting Apache Airflow"
 echo " AIRFLOW_HOME: $AIRFLOW_HOME"
-echo " Webserver Port: 8024"
+echo " Webserver Port: 8010"
 echo "====================================="
 
 # Run airflow standalone via uv

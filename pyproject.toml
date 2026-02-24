@@ -40,7 +40,8 @@ dependencies = [
 
   "confluent-kafka>=2.11.1",
   "xmltodict==0.15.0",
-  "pymysql"
+  "pymysql",
+  "webdriver-manager"
 ]
 
 [project.optional-dependencies]

@@ -28,5 +28,6 @@ Requires-Dist: google-api-python-client>=2.168.0
 Requires-Dist: confluent-kafka>=2.11.1
 Requires-Dist: xmltodict==0.15.0
 Requires-Dist: pymysql
+Requires-Dist: webdriver-manager
 Provides-Extra: dev
 Requires-Dist: prek>=0.2.0; extra == "dev"

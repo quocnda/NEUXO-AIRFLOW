@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import json
@@ -16,7 +18,11 @@ from sqlalchemy.orm import joinedload
 from model.model import EventsList, GuestList, MainEvents, LinkedinCompany, Notification
 from plugin.Linkedin import getCompanyInfor
 from plugin.utils.format_data import updateLinkedinUrl
-
+from webdriver_manager.chrome import ChromeDriverManager
+from typing import Dict
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.chrome.service import Service
+from plugin.Apollo  import getCompanyByUrl
 # Nếu bạn bật lại GenAI thì uncomment + import đúng module
 # from genAI.general_agent import SummaryCompanyDescription, genLabelCompany
 
@@ -24,10 +30,36 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+def parse_iso_datetime(value):
+    """Parse ISO 8601 datetime string to Python datetime object."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        # Handle ISO 8601 format: '2026-02-12T03:00:00.000Z'
+        try:
+            # Remove 'Z' and parse
+            if value.endswith('Z'):
+                value = value[:-1] + '+00:00'
+            return datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            try:
+                # Fallback: try without timezone
+                return datetime.fromisoformat(value.replace('Z', '').replace('.000', ''))
+            except ValueError:
+                return None
+    return None
+
+
 PASSWORD_FILE = f"{BASE_DIR}/credentials/auth_login_luma.json"
 COOKIES_FILE = f"{BASE_DIR}/credentials/cookies_luma.json"
 class LumaAuthManager:
     def __init__(self):
+        self.account_credentials = {}
+        self.all_cookies = {}
+        
         with open(PASSWORD_FILE) as f:
             self.account_credentials = json.load(f)
 
@@ -35,7 +67,12 @@ class LumaAuthManager:
             with open(COOKIES_FILE) as f:
                 self.all_cookies = json.load(f)
         else:
-            self.all_cookies = {}
+            for key in self.account_credentials:
+                print(f"Initial cookie for {key}")
+                password = self.account_credentials[key]["password"]
+                cookies = self.login_and_get_cookies(key, password)
+                self.all_cookies[key] = cookies
+            self.save_cookies()
 
     def get_cookies(self, email: str) -> dict:
         return self.all_cookies.get(email, {})
@@ -60,52 +97,54 @@ class LumaAuthManager:
         with open(COOKIES_FILE, "w") as f:
             json.dump(self.all_cookies, f, indent=2)
 
-    def login_and_get_cookies(self, email: str, password: str) -> dict:
+    def login_and_get_cookies(self, email: str, password: str) -> Dict[str, str]:
         options = Options()
-        options.add_argument("--headless") # only turn off when testing is needed
+        options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1280,800")
+        options.add_argument(
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+        )
 
-        driver = webdriver.Chrome(options=options)
-        driver.get("https://lu.ma/signin")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
 
+        driver = None
         try:
-            WebDriverWait(driver, 20).until(
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
+
+            wait = WebDriverWait(driver, 30)
+
+            driver.get("https://lu.ma/signin")
+
+            wait.until(
                 EC.visibility_of_element_located((By.CSS_SELECTOR, 'input.lux-input[type="email"]'))
             ).send_keys(email)
 
-            buttons = driver.find_elements(By.CSS_SELECTOR, 'button.lux-button')
-            for btn in buttons:
+            for btn in driver.find_elements(By.CSS_SELECTOR, "button.lux-button"):
                 if "Continue with Email" in btn.text:
                     btn.click()
                     break
 
-            WebDriverWait(driver, 20).until(
-                EC.visibility_of_element_located((By.XPATH, '//label[contains(.,"Password")]'))
-            )
+            wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'input.lux-input[type="password"]'))).send_keys(password)
 
-            WebDriverWait(driver, 20).until(
-                EC.visibility_of_element_located((By.CSS_SELECTOR, 'input.lux-input[type="password"]'))
-            ).send_keys(password)
-
-            buttons = driver.find_elements(By.CSS_SELECTOR, "button.lux-button")
-            for btn in buttons:
-                if "Continue" in btn.text:
+            for btn in driver.find_elements(By.CSS_SELECTOR, "button.lux-button"):
+                if btn.text.strip() == "Continue" or "Continue" in btn.text:
                     btn.click()
                     break
 
-            WebDriverWait(driver, 20).until(
-                EC.visibility_of_element_located(
-                    (By.XPATH, "//button[div[text()='Not Now']]")
-                )
-            ).click()
+            try:
+                wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//div[text()='Not Now']]"))).click()
+            except TimeoutException:
+                pass
 
-            WebDriverWait(driver, 20).until(EC.url_contains("/home"))
+            wait.until(EC.url_contains("/home"))
 
-            raw_cookies = driver.get_cookies()
-
-            cookie_dict = {c["name"]: c["value"] for c in raw_cookies}
+            cookie_dict = {c["name"]: c["value"] for c in driver.get_cookies()}
 
             return {
                 "luma.first-page": cookie_dict.get("luma.first-page", ""),
@@ -113,9 +152,15 @@ class LumaAuthManager:
                 "luma.did": cookie_dict.get("luma.did", ""),
             }
 
+        except (TimeoutException, WebDriverException) as e:
+            raise RuntimeError(f"Luma login failed: {e}") from e
+
         finally:
-            driver.quit()
-            
+            if driver is not None:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
 
 class Luma:
     def __init__(self, session):
@@ -127,23 +172,25 @@ class Luma:
         self.endpoints = "https://api2.luma.com/"
         self.auth_manager = LumaAuthManager()
         self.all_cookies = self.auth_manager.all_cookies
-
     # ---------------------------------------------------------------------
     # DB helpers (SQLAlchemy)
     # ---------------------------------------------------------------------
     def _update_or_create_event(self, api_id: str, defaults: dict):
-        """SQLAlchemy version of update_or_create for EventsList"""
-        event = self.session.query(EventsList).filter(EventsList.api_id == api_id).first()
-        if event:
-            for key, value in defaults.items():
-                setattr(event, key, value)
-            self.session.flush()
-            return event, False
-        else:
-            event = EventsList(api_id=api_id, **defaults)
-            self.session.add(event)
-            self.session.flush()
-            return event, True
+        try:
+            event = self.session.query(EventsList).filter(EventsList.api_id == api_id).first()
+            if event:
+                for key, value in defaults.items():
+                    setattr(event, key, value)
+                self.session.flush()
+                return event, False
+            else:
+                event = EventsList(api_id=api_id, **defaults)
+                self.session.add(event)
+                self.session.flush()
+                return event, True
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def _update_or_create_main_event(self, api_id: str, defaults: dict):
         """SQLAlchemy version of update_or_create for MainEvents"""
@@ -287,7 +334,7 @@ class Luma:
                 defaults={
                     "name": cleaned_event["name"],
                     "event_url": cleaned_event["url"],
-                    "start_date": cleaned_event["start_at"],
+                    "start_date": parse_iso_datetime(cleaned_event["start_at"]),
                     "ticket_key": cleaned_event["ticket_key"],
                     "account": self.account,
                     "country": country,
@@ -295,8 +342,8 @@ class Luma:
                     "event_image": cleaned_event["cover_url"],
                     "approval_status": cleaned_event["approval_status"],
                     "guest_count": cleaned_event["guest_count"],
-                    "start_at": cleaned_event["start_at"],
-                    "end_at": cleaned_event["end_at"],
+                    "start_at": parse_iso_datetime(cleaned_event["start_at"]),
+                    "end_at": parse_iso_datetime(cleaned_event["end_at"]),
                     "updated_at": datetime.now(),
                 },
             )
@@ -375,7 +422,7 @@ class Luma:
                         "linkedin_url": rsp["linkedin_handle"],
                         "twitter_url": rsp["twitter_handle"],
                         "website": rsp["website"],
-                        "verified_at": rsp["verified_at"],
+                        "verified_at": parse_iso_datetime(rsp["verified_at"]),
                         "updated_at": datetime.now(),
                     },
                 )
@@ -458,7 +505,7 @@ class Luma:
         lst_guest = []
         next_pagination, has_more = "", None
         count_adding, count_existed = 0, 0
-
+        print('---------> Getting guest list for event:', event.name)
         while True:
             if has_more is None:
                 link = f"{self.endpoints}event/get-guest-list?event_api_id={event.api_id}&ticket_key={event.ticket_key}&pagination_limit=100"
@@ -526,7 +573,7 @@ class Luma:
                         twitter_url=guest_exist.twitter_url,
                         website=guest_exist.website,
                         event_id=event.id,
-                        email=guest_exist.email,
+                        email=guest_exist.email or "",
                         role=guest_exist.role,
                         company_id=guest_exist.company_id,
                         check_company=False,
