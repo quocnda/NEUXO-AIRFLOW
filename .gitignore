@@ -3,3 +3,4 @@ airflow/logs/
 plugin/credentials/
 airflow/airflow.db
 **/__pycache__/
+.env

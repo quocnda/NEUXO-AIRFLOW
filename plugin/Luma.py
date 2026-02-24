@@ -23,6 +23,7 @@ from typing import Dict
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.service import Service
 from plugin.Apollo  import getCompanyByUrl
+from plugin.utils.ai_helper import GenLabelAndCategoryAIUsage, SummaryDescriptionAIUsage
 # Nếu bạn bật lại GenAI thì uncomment + import đúng module
 # from genAI.general_agent import SummaryCompanyDescription, genLabelCompany
 
@@ -493,13 +494,60 @@ class Luma:
     def find_company_by_domain(self, domain):
         if not domain:
             return None
+        company_data = getCompanyByUrl(domain, type="domain")
+        company = None
+        linkedin_company =company_data["company_linkedin_url"]
+        if company_data["company_linkedin_url"] is not None:
+            print(f"        -----> Adding: {linkedin_company}")
+            defaults = {
+                "name": company_data["name"],
+                "website": company_data["website"],
+                "description": company_data["short_description"],
+                "linkedin_funding_amt": company_data["total_funding"],
+                "linkedin_lasted_funding_date": company_data[
+                    "latest_funding_round_date"
+                ],
+                "size": company_data["size"],
+            }
+
+            detail_info_company = getCompanyInfor(
+                linkCompany=company_data["company_linkedin_url"]
+            )
+            if detail_info_company != {}:
+                defaults["website"] = detail_info_company.get(
+                    "website", company_data["website"]
+                )
+                defaults["description"] = detail_info_company.get(
+                    "description", company_data["short_description"]
+                )
+                defaults["industry"] = detail_info_company.get("industry", None)
+                defaults["organization_type"] = detail_info_company.get(
+                    "organization_type", None
+                )
+                defaults["headquarters"] = detail_info_company.get("headquarters", None)
+                defaults["followers"] = detail_info_company.get("followers", None)
+                defaults["size"] = detail_info_company.get("size", company_data["size"])
+                defaults["avatar_url"] = detail_info_company.get("avatar_url", None)
+
+            # generate_short_description_company = SummaryDescriptionAIUsage(session = self.session).generate(
+            #     defaults["description"], defaults["industry"]
+            # )
+            # if generate_short_description_company is not None:
+            #     defaults["short_description"] = generate_short_description_company
+
+            label, category = GenLabelAndCategoryAIUsage(session = self.session).generate(
+                defaults["description"], defaults["industry"]
+            )
+            if category and (category != "Waiting"):
+                defaults["category"] = category
+                defaults["labels"] = label
+
+            company, created = self._update_or_create_company(
+                linkedin_url=updateLinkedinUrl(company_data["company_linkedin_url"]),
+                defaults=defaults,
+            )
+        return company
         
-        # TODO: Implement getCompanyByUrl function for domain lookup
-        # company_data = getCompanyByUrl(domain, type="domain")
-        # if company_data is None:
-        #     return None
-        # For now, return None since we don't have the external API
-        return None
 
     def getGuestList(self, event: EventsList):
         lst_guest = []

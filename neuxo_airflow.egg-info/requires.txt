@@ -23,6 +23,10 @@ confluent-kafka>=2.11.1
 xmltodict==0.15.0
 pymysql
 webdriver-manager
+langchain
+langchain-openai
+openai
+google-generativeai
 
 [dev]
 prek>=0.2.0
