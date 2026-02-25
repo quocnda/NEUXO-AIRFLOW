@@ -4,3 +4,4 @@ plugin/credentials/
 airflow/airflow.db
 **/__pycache__/
 .env
+airflow/airflow-webserver.pid

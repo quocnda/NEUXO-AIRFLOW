@@ -4,14 +4,17 @@ import os
 import requests
 from dotenv import load_dotenv
 import random
-
+import logging
 load_dotenv()
 LIST_APOLLO_KEY = os.getenv("API_KEY_APOLLO", None)
 def getCompayData(response: requests.Response):
     try:
         company = response.json()
     except ValueError as e:
-        print(f"JSON Parsing Error: {e}")
+        logging.error(f"JSON Parsing Error: {e}")
+        return None
+    print('Company data retrieved:', company)
+    if not company:
         return None
     if company is None or "organization" not in company:
         return None
@@ -62,11 +65,10 @@ def getCompayData(response: requests.Response):
             ),
         }
     return company_info
-def getCompanyByUrl(link, type="domain"):
+def getCompanyByUrl(link, type="domain") -> dict | None:
     company_data = None
     api_keys = LIST_APOLLO_KEY.split(",")
     max_retries = min(3, len(api_keys))
-    
     if type == "domain":
         url = f"https://api.apollo.io/api/v1/organizations/enrich?domain={link}"
         
@@ -80,13 +82,17 @@ def getCompanyByUrl(link, type="domain"):
             }
             try:
                 response = requests.get(url, headers=headers)
-                if response.status_code == 200:
-                    company_data = getCompayData(response)
-                    if company_data:
-                        return company_data
-                print(f"Attempt {attempt + 1}/{max_retries} failed with status {response.status_code}")
+                company_data = getCompayData(response)
+                if not company_data:
+                    return None
+                if company_data:
+                    logging.info(f"Successfully retrieved company data for {link} using API key ending in {api_key[-4:]}")
+                    return company_data
+                else:
+                    logging.warning(f"Company data for {link} is incomplete or missing 'organization' field.")
+                logging.error(f"Attempt {attempt + 1}/{max_retries} failed with status {response.status_code}")
             except requests.RequestException as e:
-                print(f"Attempt {attempt + 1}/{max_retries} - Request Error: {e}")
+                logging.error(f"Attempt {attempt + 1}/{max_retries} - Request Error: {e}")
             
             # Remove used key to try different one next time
             if len(api_keys) > 1:

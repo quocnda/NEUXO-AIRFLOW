@@ -495,6 +495,8 @@ class Luma:
         if not domain:
             return None
         company_data = getCompanyByUrl(domain, type="domain")
+        if company_data is None:
+            return None
         company = None
         linkedin_company =company_data["company_linkedin_url"]
         if company_data["company_linkedin_url"] is not None:
@@ -651,6 +653,7 @@ class Luma:
                             linkedin_url=linkedin_url,
                             twitter_url=twitter_url,
                             website=website,
+                            email = "",
                             event_id=event.id,
                             company_id=(company.id if company else None),
                             check_company=False if company is None else True,
@@ -662,7 +665,7 @@ class Luma:
                         self._get_or_create_notification(
                             reference_id=event.id,
                             type_="EVENT",
-                            company=company,
+                            company=company if company else None,
                             defaults={
                                 "title": event.name,
                                 "post_url": "https://lu.ma/" + (event.event_url or ""),
@@ -670,6 +673,8 @@ class Luma:
                             },
                         )
                     except Exception as e:
+                        import traceback
+                        traceback.print_exc()
                         print(f"Error when adding guest {linkedin_url}: {e}")
                         continue
 
