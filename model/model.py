@@ -303,6 +303,8 @@ class CompanyFunding(Base, TimestampMixin):
     company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=True)
     logo_url = Column(String(1000), nullable=True)
     
+    news_url = Column(String(1000), nullable=True)
+    
     
 #------------------Clutch review company-----------------------------
 
@@ -348,6 +350,8 @@ class LinkedinPersonalEmail(Base, TimestampMixin):
     company = relationship("LinkedinCompany", lazy="joined")
     
     twitter_summary = Column(Text, nullable=True)
+    about = Column(Text, nullable=True)
+    education = Column(JSON, default=list, nullable=True)
     note = Column(Text, nullable=True)
     is_update = Column(Integer, default=0, nullable=True)
     urn = Column(Text, nullable=True)
@@ -357,13 +361,39 @@ class PersonalExperience(Base, TimestampMixin):
     __tablename__ = "Linkedin_Personal_Experience"
 
     id = Column(String(36), primary_key=True, default=uuid_str)
+
     linkedin_company_id = Column(String(50), nullable=True)
     linkedin_company_url = Column(Text, nullable=True)
     linkedin_company_logo = Column(Text, nullable=True)
     title = Column(Text, nullable=True)
     company_name = Column(Text, nullable=True)
     time_period = Column(Text, nullable=True)
-    
+
+    location = Column(Text, nullable=True)
+    employment_type = Column(String(100), nullable=True)
+    workplace_type = Column(String(100), nullable=True)
+    duration = Column(String(100), nullable=True)
+    description = Column(Text, nullable=True)
+
+    start_date_text = Column(String(100), nullable=True)
+    start_month = Column(String(20), nullable=True)
+    start_year = Column(Integer, nullable=True)
+
+    end_date_text = Column(String(100), nullable=True)
+    end_month = Column(String(20), nullable=True)
+    end_year = Column(Integer, nullable=True)
+
+    is_current = Column(Boolean, default=False)
+
+    company_universal_name = Column(String(255), nullable=True)
+    experience_group_id = Column(String(255), nullable=True)
+    source_profile_url = Column(String(500), nullable=True)
+
+    raw_data = Column(JSON, nullable=True, default=dict)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
     personal_id = Column(String(36), ForeignKey("Linkedin_Peoples.id"), nullable=False)
     personal = relationship("LinkedinPersonalEmail", lazy="joined")
 
@@ -376,3 +406,29 @@ class PersonalEmail(Base, TimestampMixin):
     
     personal_id = Column(String(36), ForeignKey("Linkedin_Peoples.id"), nullable=False)
     personal = relationship("LinkedinPersonalEmail", lazy="joined")
+
+#------------------Company News -----------------------------
+class NewsInformation(Base, TimestampMixin):
+    __tablename__ = "News"
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    name_company = Column(String(500), nullable=True)
+    company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=True)
+    company = relationship("LinkedinCompany", lazy="joined")
+    link_news = Column(String(1000), nullable=True)
+    content = Column(Text, nullable=True)
+    category = Column(String(100), nullable=True)
+    time_post = Column(DateTime, default=func.now(), nullable=True)
+    title = Column(String(1000), nullable=True)
+    
+    
+class ApifyToken(Base, TimestampMixin):
+    __tablename__ = "Apify_Token"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    token = Column(Text, nullable=True)
+    next_time_available = Column(DateTime, nullable=True)
+    gmail = Column(String(255), nullable=True)
+    pass_gmail = Column(String(255), nullable=True)
+    
+    status = Column(String(100), nullable=True)  # e.g., "available", "in_use", "cooldown"
+    

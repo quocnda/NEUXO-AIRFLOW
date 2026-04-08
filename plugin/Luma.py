@@ -24,6 +24,8 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.service import Service
 from plugin.Apollo  import getCompanyByUrl
 from plugin.utils.ai_helper import GenLabelAndCategoryAIUsage, SummaryDescriptionAIUsage
+import json
+from pathlib import Path
 # Nếu bạn bật lại GenAI thì uncomment + import đúng module
 # from genAI.general_agent import SummaryCompanyDescription, genLabelCompany
 
@@ -72,6 +74,8 @@ class LumaAuthManager:
                 print(f"Initial cookie for {key}")
                 password = self.account_credentials[key]["password"]
                 cookies = self.login_and_get_cookies(key, password)
+                if not cookies:
+                    continue
                 self.all_cookies[key] = cookies
             self.save_cookies()
 
@@ -98,7 +102,7 @@ class LumaAuthManager:
         with open(COOKIES_FILE, "w") as f:
             json.dump(self.all_cookies, f, indent=2)
 
-    def login_and_get_cookies(self, email: str, password: str) -> Dict[str, str]:
+    def login_and_get_cookies(self, email: str, password: str) -> Dict[str, str] | None:
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
@@ -131,8 +135,11 @@ class LumaAuthManager:
                     btn.click()
                     break
 
-            wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'input.lux-input[type="password"]'))).send_keys(password)
-
+            try:
+                wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'input.lux-input[type="password"]'))).send_keys(password)
+            except TimeoutException:
+                print(f"Password input not found for email {email}, skipping login")
+                return None
             for btn in driver.find_elements(By.CSS_SELECTOR, "button.lux-button"):
                 if btn.text.strip() == "Continue" or "Continue" in btn.text:
                     btn.click()
@@ -154,7 +161,9 @@ class LumaAuthManager:
             }
 
         except (TimeoutException, WebDriverException) as e:
-            raise RuntimeError(f"Luma login failed: {e}") from e
+            # raise RuntimeError(f"Luma login failed: {e}") from e
+            print(f"Error during Luma login for {email}: {e}")
+            return None
 
         finally:
             if driver is not None:
@@ -573,6 +582,18 @@ class Luma:
                 return
 
             df = pd.DataFrame(lst_guest)
+            # Convert dataframe to JSON and save to temp folder
+
+            temp_folder = Path("/home/quocnda/neuxo/data_temp")
+            temp_folder.mkdir(parents=True, exist_ok=True)
+
+            # Create filename from event name
+            filename = f"{event.name.replace('/', '_').replace(' ', '_')}.json"
+            filepath = temp_folder / filename
+
+            # Convert dataframe to JSON and save
+            df.to_json(filepath, orient='records', indent=2)
+            print(f"        -----> Saved guest data to {filepath}")
             # Apply the sanitization to each column
             for column in df.columns:
                 df[column] = df[column].map(lambda x: re.sub(r"[\x00-\x1F]+", "", x) if isinstance(x, str) else x, na_action="ignore")
