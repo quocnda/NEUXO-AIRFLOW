@@ -5,3 +5,13 @@ airflow/airflow.db
 **/__pycache__/
 .env
 airflow/airflow-webserver.pid
+airflow/dags/__pycache__/count_1_to_100.cpython-312.pyc
+airflow/dags/__pycache__/get_jobs_dag.cpython-312.pyc
+hook/__pycache__/__init__.cpython-312.pyc
+hook/__pycache__/sqlalchemyHook.cpython-312.pyc
+model/__pycache__/__init__.cpython-312.pyc
+model/__pycache__/model.cpython-312.pyc
+plugin/utils/__pycache__/__init__.cpython-312.pyc
+plugin/utils/__pycache__/format_data.cpython-312.pyc
+migrate_db_example.py
+migrate_db_people.py

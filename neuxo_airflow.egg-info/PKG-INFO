@@ -33,5 +33,6 @@ Requires-Dist: langchain
 Requires-Dist: langchain-openai
 Requires-Dist: openai
 Requires-Dist: google-generativeai
+Requires-Dist: curl_cffi
 Provides-Extra: dev
 Requires-Dist: prek>=0.2.0; extra == "dev"

@@ -45,7 +45,8 @@ dependencies = [
   "langchain",
     "langchain-openai",
     "openai",
-    "google-generativeai"
+    "google-generativeai",
+    "curl_cffi"
 ]
 
 [project.optional-dependencies]

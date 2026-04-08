@@ -94,7 +94,7 @@ class LinkedinCompany(Base, TimestampMixin):
     avatar_url = Column(String(1000), nullable=True)
     linkedin_url = Column(String(500), nullable=True)
     linkedin_uid = Column(String(100), nullable=True)
-    website = Column(String(200), nullable=True)
+    website = Column(String(1000), nullable=True)
     size = Column(String(50), nullable=True)
     link_twitter = Column(String(100), nullable=True)
 
@@ -282,3 +282,97 @@ Index("guestlist_created_at_idx", GuestList.created_at)
 Index("guestlist_company_idx", GuestList.company_id)
 Index("guestlist_email_status_idx", GuestList.email_status_emailinfor)
     
+    
+#-------------Funding------------------------------
+
+class CompanyFunding(Base, TimestampMixin):
+    __tablename__ = "Funding"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    name = Column(String(500), nullable=True)
+    round = Column(String(100), nullable=True)
+    date = Column(Date, nullable=True)
+    amount = Column(String(100), nullable=True)
+    category = Column(String(100), nullable=True)
+    
+    website = Column(String(1000), nullable=True)
+    project_url = Column(String(1000), nullable=True)
+    linkedin_url = Column(String(1000), nullable=True)
+    linkedin_uid = Column(String(100), nullable=True)
+    
+    company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=True)
+    logo_url = Column(String(1000), nullable=True)
+    
+    
+#------------------Clutch review company-----------------------------
+
+class ClutchReview(Base, TimestampMixin):
+    __tablename__ = "Clutch_Review"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    
+    company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=True)
+    company = relationship("LinkedinCompany", lazy="joined")
+    
+    reviewer_name = Column(String(500), nullable=True)
+    reviewer_role = Column(String(500), nullable=True)
+    reviewer_company = Column(String(500), nullable=True)
+    industry = Column(String(500), nullable=True)
+    location = Column(String(500), nullable=True)
+    client_size = Column(String(500), nullable=True)
+    services = Column(String(500), nullable=True)
+    project_size = Column(String(500), nullable=True)
+    project_length = Column(String(500), nullable=True)
+    project_description = Column(Text, nullable=True)
+    background = Column(Text, nullable=True)
+    website_url = Column(String(1000), nullable=True)
+    linkedin_url = Column(String(500), nullable=True)
+    description_company_outsource = Column(Text, nullable=True)
+    services_company_outsource = Column(String(500), nullable=True)
+    
+    
+#-------------Persons-----------------------------
+class LinkedinPersonalEmail(Base, TimestampMixin):
+    __tablename__ = "Linkedin_Peoples"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    email = Column(String(100), nullable=False)
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
+    linkedin_url = Column(String(200), nullable=True)
+    twitter_url = Column(String(200), nullable=True)
+    avatar_linkedin_url = Column(Text, nullable=True)
+    role = Column(String(200), nullable=True)
+    
+    company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=True)
+    company = relationship("LinkedinCompany", lazy="joined")
+    
+    twitter_summary = Column(Text, nullable=True)
+    note = Column(Text, nullable=True)
+    is_update = Column(Integer, default=0, nullable=True)
+    urn = Column(Text, nullable=True)
+
+
+class PersonalExperience(Base, TimestampMixin):
+    __tablename__ = "Linkedin_Personal_Experience"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    linkedin_company_id = Column(String(50), nullable=True)
+    linkedin_company_url = Column(Text, nullable=True)
+    linkedin_company_logo = Column(Text, nullable=True)
+    title = Column(Text, nullable=True)
+    company_name = Column(Text, nullable=True)
+    time_period = Column(Text, nullable=True)
+    
+    personal_id = Column(String(36), ForeignKey("Linkedin_Peoples.id"), nullable=False)
+    personal = relationship("LinkedinPersonalEmail", lazy="joined")
+
+
+class PersonalEmail(Base, TimestampMixin):
+    __tablename__ = "Personal_Email"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    email = Column(String(100), nullable=False)
+    
+    personal_id = Column(String(36), ForeignKey("Linkedin_Peoples.id"), nullable=False)
+    personal = relationship("LinkedinPersonalEmail", lazy="joined")

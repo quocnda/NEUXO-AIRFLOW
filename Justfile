@@ -38,7 +38,13 @@ typecheck:
     uv run mypy .
 
 airflow:
+    export AIRFLOW_HOME=/home/quocnda/neuxo/airflow-neuxo/airflow
     uv run airflow standalone
+
+rerun:
+    export AIRFLOW_HOME=/home/quocnda/neuxo/airflow-neuxo/airflow
+    uv run airflow webserver
+    uv run airflow scheduler
 
 clean:
     rm -rf dist

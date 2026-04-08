@@ -27,6 +27,7 @@ langchain
 langchain-openai
 openai
 google-generativeai
+curl_cffi
 
 [dev]
 prek>=0.2.0
