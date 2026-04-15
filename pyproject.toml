@@ -47,7 +47,9 @@ dependencies = [
     "openai",
     "google-generativeai",
     "curl_cffi",
-  "apify-client"
+  "apify-client",
+  "bs4",
+  "mysqlclient"
 ]
 
 [project.optional-dependencies]

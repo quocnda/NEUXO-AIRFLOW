@@ -29,6 +29,8 @@ openai
 google-generativeai
 curl_cffi
 apify-client
+bs4
+mysqlclient
 
 [dev]
 prek>=0.2.0

@@ -432,3 +432,23 @@ class ApifyToken(Base, TimestampMixin):
     
     status = Column(String(100), nullable=True)  # e.g., "available", "in_use", "cooldown"
     
+    
+class Mentions(Base, TimestampMixin):
+    __tablename__ = "Mentions"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=True)
+    company = relationship("LinkedinCompany", lazy="joined")
+    type = Column(String(100), nullable=False)  # e.g., "SUB_DOMAIN", "LINKEDIN", etc.
+    guest_id = Column(String(36), nullable=True)  # For mentions related to guests (e.g., events)
+    note = Column(Text, nullable=True)
+    
+class MentionsSubDomain(Base, TimestampMixin):
+    __tablename__ = "Mentions_SubDomain"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    sub_domain = Column(Text, nullable=True)
+    ip = Column(String(100), nullable=True)
+    mentions_id = Column(String(36), ForeignKey("Mentions.id"), nullable=False)
+    mentions = relationship("Mentions", lazy="joined")
+    
