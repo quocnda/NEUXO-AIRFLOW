@@ -197,6 +197,7 @@ class Luma:
                 event = EventsList(api_id=api_id, **defaults)
                 self.session.add(event)
                 self.session.flush()
+                self.session.commit()  # Commit here to get the ID for relationships
                 return event, True
         except Exception as e:
             import traceback
@@ -214,6 +215,7 @@ class Luma:
             main_event = MainEvents(api_id=api_id, **defaults)
             self.session.add(main_event)
             self.session.flush()
+            self.session.commit()  # Commit here to get the ID for relationships
             return main_event, True
 
     def _update_or_create_company(self, linkedin_url: str, defaults: dict):

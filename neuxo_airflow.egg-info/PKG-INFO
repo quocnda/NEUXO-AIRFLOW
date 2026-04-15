@@ -35,5 +35,7 @@ Requires-Dist: openai
 Requires-Dist: google-generativeai
 Requires-Dist: curl_cffi
 Requires-Dist: apify-client
+Requires-Dist: bs4
+Requires-Dist: mysqlclient
 Provides-Extra: dev
 Requires-Dist: prek>=0.2.0; extra == "dev"

@@ -36,7 +36,7 @@ def linkedin_get_all_jobs_dag():
     def run_job():
         hook = SQLAlchemyHook()
         session = hook.get_session()
-
+        print("Session created:", session)
         try:
             linkedin = Linkedin(session)
             linkedin.getAllJob()

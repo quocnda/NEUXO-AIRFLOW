@@ -416,8 +416,6 @@ class Linkedin:
 
     ############################################################################################################
     def getAllJob(self):
-        self.KEY_WORDS = ['Vinmotion']
-        self.LOCATIONS = ['Worldwide']
         for category in self.KEY_WORDS:
             for location in self.LOCATIONS:
                 if location == "Others":
