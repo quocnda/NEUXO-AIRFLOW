@@ -344,7 +344,7 @@ class LinkedinPersonalEmail(Base, TimestampMixin):
     linkedin_url = Column(String(200), nullable=True)
     twitter_url = Column(String(200), nullable=True)
     avatar_linkedin_url = Column(Text, nullable=True)
-    role = Column(String(200), nullable=True)
+    role = Column(String(700), nullable=True)
     
     company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=True)
     company = relationship("LinkedinCompany", lazy="joined")

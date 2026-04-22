@@ -5,6 +5,7 @@ from sqlalchemy import or_
 
 from .BaseApify import BaseApify
 from model.model import GuestList
+from datetime import datetime
 
 
 class LinkedinEmailScraper(BaseApify):
@@ -75,7 +76,10 @@ class LinkedinEmailScraper(BaseApify):
                             GuestList.linkedin_url == f"{linkedin_url}/",
                         )
                     ).update(
-                        {"email": selected_email},
+                        {
+                            "email": selected_email,
+                            "updated_at": datetime.utcnow()
+                        },
                         synchronize_session=False,
                     )
 
