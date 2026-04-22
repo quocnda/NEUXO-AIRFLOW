@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     create_engine,
+    Enum
 )
 
 from sqlalchemy.dialects.mysql import JSON
@@ -452,3 +453,74 @@ class MentionsSubDomain(Base, TimestampMixin):
     mentions_id = Column(String(36), ForeignKey("Mentions.id"), nullable=False)
     mentions = relationship("Mentions", lazy="joined")
     
+    
+#------------------Email Manager-----------------------------
+
+
+
+class MailHistory(Base, TimestampMixin):
+    __tablename__ = "User_Mail_History"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+
+    user_id = Column(String(36), ForeignKey("Users.id"), nullable=False)
+    user = relationship("Users", lazy="joined")
+
+    mail_send = Column(String(300), nullable=True)
+    mail_recieved = Column(String(300), nullable=True)
+    content = Column(Text, nullable=True)
+
+    time_send = Column(DateTime, nullable=False)
+
+    note = Column(Text, nullable=True)
+    subject = Column(Text, nullable=True)
+
+    main_target_mail = Column(String(300), nullable=True)
+    name_target_mail = Column(String(300), nullable=True)
+
+    html_mail_content = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    type = Column(Text, nullable=True)
+    id_attachment = Column(Text, nullable=True)
+
+    message_id = Column(Text, nullable=True)
+    status_mail = Column(Text, nullable=True)
+
+    email_ref_first_id = Column(Text, nullable=True)
+    email_reply_id = Column(Text, nullable=True)
+
+    campaign_id = Column(Text, nullable=True)
+    
+class EmailTemplate(Base, TimestampMixin):
+    __tablename__ = "Email_Template"
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+
+    user_id = Column(String(36), ForeignKey("Users.id"), nullable=False)
+    user = relationship("Users", lazy="joined")
+
+    template_name = Column(String(300), nullable=True)
+    template_subject = Column(String(300), nullable=True)
+    template_content = Column(Text, nullable=True)
+
+    attachments = Column(JSON, default=list, nullable=True)
+    
+class MailAppAccount(Base, TimestampMixin):
+    __tablename__ = "User_Mail_Account"
+
+    STATUS_CHOICES = ("ACTIVE", "INACTIVE")
+
+    id = Column(String(36), primary_key=True, default=uuid_str)
+
+    user_id = Column(String(36), ForeignKey("Users.id"), nullable=False)
+    user = relationship("Users", lazy="joined")
+
+    email = Column(String(300), nullable=True)
+    password_app = Column(String(300), nullable=True)
+
+    status = Column(
+        Enum(*STATUS_CHOICES, name="mail_account_status"),
+        default="ACTIVE",
+        nullable=False
+    )
