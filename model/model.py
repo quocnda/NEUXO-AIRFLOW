@@ -524,3 +524,4 @@ class MailAppAccount(Base, TimestampMixin):
         default="ACTIVE",
         nullable=False
     )
+    
