@@ -15,3 +15,4 @@ plugin/utils/__pycache__/__init__.cpython-312.pyc
 plugin/utils/__pycache__/format_data.cpython-312.pyc
 migrate_db_example.py
 migrate_db_people.py
+t.ipynb
