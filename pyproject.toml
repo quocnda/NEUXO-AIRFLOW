@@ -49,7 +49,8 @@ dependencies = [
     "curl_cffi",
   "apify-client",
   "bs4",
-  "mysqlclient"
+  "mysqlclient",
+  "cloudscraper"
 ]
 
 [project.optional-dependencies]

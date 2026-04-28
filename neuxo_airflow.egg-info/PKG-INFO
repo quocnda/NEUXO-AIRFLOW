@@ -37,5 +37,6 @@ Requires-Dist: curl_cffi
 Requires-Dist: apify-client
 Requires-Dist: bs4
 Requires-Dist: mysqlclient
+Requires-Dist: cloudscraper
 Provides-Extra: dev
 Requires-Dist: prek>=0.2.0; extra == "dev"

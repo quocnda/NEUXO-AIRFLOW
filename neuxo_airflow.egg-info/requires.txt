@@ -31,6 +31,7 @@ curl_cffi
 apify-client
 bs4
 mysqlclient
+cloudscraper
 
 [dev]
 prek>=0.2.0
