@@ -25,7 +25,7 @@ from model.model import (
 
 
 
-DEFAULT_LLM_TYPE = "OPENAI"
+DEFAULT_LLM_TYPE = "GEMINI"
 
 class AIManager:
     _instance = None
@@ -61,8 +61,9 @@ class AIManager:
         api_key = random.choice(self.api_keys)
         if self.llm_type == "GEMINI":
             genai.configure(api_key=api_key)
-            return genai.GenerativeModel("gemini-2.0-flash")
+            return genai.GenerativeModel("gemini-3-flash-preview")
         if self.llm_type == "OPENAI":
+            print('API KEY USED FOR OPENAI:', api_key)
             return ChatOpenAI(model="gpt-4o-mini", temperature=0.3, api_key=api_key)
 
     @classmethod
@@ -77,9 +78,11 @@ class AIManager:
     def get_model(self):
         """Get a model from the pool, wait if none available"""
         try:
+            print("Getting model from pool...")
             return self.model_pool.get(block=True, timeout=2)
         except Empty:
             # If pool is empty, create a new model
+            print("Model pool is empty, creating a new model...")
             return self._create_model()
 
     def release_model(self, model):
@@ -138,6 +141,7 @@ class BaseAIUsage:
         self.session = session
         self.llm_type = llm_type.upper()
         self.ai_manager = AIManager.get_instance()
+        print('---------------->>>> API KEY USED:', self.ai_manager.api_keys)
 
     def _invoke_with_openai(self, model, prompt_text):
         """Helper method to invoke OpenAI model with prompt."""
@@ -152,6 +156,7 @@ class BaseAIUsage:
 
     def _invoke_with_gemini(self, model, prompt_text):
         """Helper method to invoke Gemini model with prompt."""
+
         response = model.generate_content(prompt_text)
         if not response or not hasattr(response, "text"):
             raise ValueError("Invalid response: No valid content returned.")
@@ -363,3 +368,38 @@ class GenLabelAndCategoryAIUsage(BaseAIUsage):
             return [], "Other"
 
         return matched_label, category
+
+
+#########################################################################################################################
+# GET NAME COMPANY BY POST AI USAGE
+#########################################################################################################################
+class GetNameCompanyByPost(BaseAIUsage):
+    """AI usage for extracting company name from post HTML."""
+
+    def build_prompt(self, job_description):
+        """Build prompt to identify company name from post description."""
+        prompt = f"""Post Description : {job_description}
+
+        **Prompt:**
+
+        Based on the provided HTML of a web, identify the most suitable name of company.
+        Exclude the name of website like 'cryptonews.com', 'cryptonews', 'dlnews.com', 'dlnews'.
+        Base the name of company, can you search on google to give the website of company. If you can not, you can return the name.
+        About the output, i want format it like 'answer: ...' with '...' is most suitable website company or name company.
+        """
+        return prompt
+
+    def generate(self, description):
+        """Generate company name from post description."""
+        if description is None or description == "Waiting":
+            return "Not found description"
+
+        prompt = self.build_prompt(description)
+
+        try:
+            return self.ai_manager.execute_with_retry(
+                self._generate_content, prompt
+            )
+        except Exception as e:
+            print(f"        XXXXXXX Error generating COMPANY name: {e}")
+            return "Failed to get company name"
