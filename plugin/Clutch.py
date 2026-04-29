@@ -16,6 +16,7 @@ import argparse
 import logging
 import random
 import time
+from enum import Enum
 from typing import Optional, List, Dict, Any, Tuple
 from urllib.parse import urljoin
 
@@ -51,6 +52,13 @@ COMMON_HEADERS = {
 IMP_CHOICES = ["chrome141", "chrome120", "safari17_0"]
 SLEEP_MIN = 0.5
 SLEEP_MAX = 1.5
+
+
+class CrawlStatus(str, Enum):
+    TIME_OUT = "TIME_OUT"
+    ERROR = "ERROR"
+    NO_REVIEW = "NO_REVIEW"
+    HAVE_REVIEW = "HAVE_REVIEW"
 
 
 class ClutchCrawler:
@@ -205,29 +213,30 @@ class ClutchCrawler:
     # =========================
     # DB Operations
     # =========================
-    def _get_company_by_linkedin_company(self, linkedin_url: str, session: Session = None) -> Optional[LinkedinCompany]:
+    def _get_company_by_linkedin_company(self, linkedin_url: str) -> Optional[LinkedinCompany]:
         """Find existing company by LinkedIn URL."""
         if not linkedin_url:
             return None
-        sess = session or self._get_thread_session()
+        linkedin_url = updateLinkedinUrl(linkedin_url)
+        sess = self.session
         return (
             sess.query(LinkedinCompany)
             .filter(LinkedinCompany.linkedin_url == linkedin_url)
             .first()
         )
 
-    def _get_company_by_name(self, name: str, session: Session = None) -> Optional[LinkedinCompany]:
+    def _get_company_by_name(self, name: str) -> Optional[LinkedinCompany]:
         """Find existing company by name."""
         if not name:
             return None
-        sess = session or self._get_thread_session()
+        sess = self.session
         return (
             sess.query(LinkedinCompany)
             .filter(LinkedinCompany.name == name)
             .first()
         )
 
-    def _upsert_company(self, company_data: Dict[str, Any], session: Session = None) -> Tuple[LinkedinCompany, bool]:
+    def _upsert_company(self, company_data: Dict[str, Any]) -> Tuple[LinkedinCompany, bool]:
         """
         Update or create a LinkedinCompany record.
         
@@ -239,14 +248,14 @@ class ClutchCrawler:
         Returns:
             Tuple of (company, created) where created is True if new record.
         """
-        sess = session or self._get_thread_session()
+        sess = self.session
         website = company_data.get("website")
         name = company_data.get("name")
         
         # Try to find existing company
-        company = self._get_company_by_linkedin_company(company_data.get("linkedin_url"), sess) if company_data.get("linkedin_url") else None
+        company = self._get_company_by_linkedin_company(company_data.get("linkedin_url", None))
         if not company and name:
-            company = self._get_company_by_name(name, sess)
+            company = self._get_company_by_name(name)
         
         created = False
         if company:
@@ -335,26 +344,24 @@ class ClutchCrawler:
             .first()
         )
 
-    def _upsert_review(
+    def s_upsert_review(
         self,
         review_data: Dict[str, Any],
-        outsource_linkedin_url: Optional[str] = None,
-        session: Session = None
+        company: LinkedinCompany,
     ) -> Tuple[ClutchReview, bool]:
         """
         Create a ClutchReview record linked to LinkedinCompany via linkedin_url.
         
         Args:
             review_data: Dict with review info (reviewer_name, reviewer_company, etc.)
-            outsource_linkedin_url: LinkedIn URL of the outsource company
+            company: LinkedinCompany instance
             session: Optional session (uses thread-local if not provided)
         
         Returns:
             Tuple of (review, created) where created is True if new record.
         """
-        sess = session or self._get_thread_session()
+        sess = self.session
         # Find linked company by linkedin_url
-        company = self._get_company_by_linkedin_url(outsource_linkedin_url, sess)
         company_id = company.id if company else None
         
         # Check if review already exists (by reviewer_name + reviewer_company + company_id)
@@ -390,7 +397,7 @@ class ClutchCrawler:
             project_description=review_data.get("Project description"),
             background=review_data.get("background"),
             website_url=review_data.get("website_url"),
-            linkedin_url=outsource_linkedin_url,
+            linkedin_url=company.linkedin_url if company else None,
             description_company_outsource=review_data.get("description_company_outsource"),
             services_company_outsource=review_data.get("services_company_outsource"),
         )
@@ -426,7 +433,7 @@ class ClutchCrawler:
                 urls.append(urljoin("https://clutch.co", a["href"]))
         return urls
 
-    def crawl_company_detail(self, company_url: str) -> Tuple[str, Dict[str, Any]]:
+    def crawl_company_detail(self, company_url: str) -> Tuple[CrawlStatus, Dict[str, Any]]:
         """
         Crawl a single company page and extract data.
         
@@ -437,7 +444,7 @@ class ClutchCrawler:
         resp = self._http_get(company_url)
         if not resp:
             logger.warning(f"Skipped (403/timeout): {company_url}")
-            return "TIME_OUT", {}
+            return CrawlStatus.TIME_OUT, {}
 
         soup = BeautifulSoup(resp.text, "html.parser")
         prefix_url = company_url.split("?page=")[0]
@@ -545,39 +552,30 @@ class ClutchCrawler:
             "reviews": reviews,
         }
 
-        status = "HAVE_REVIEW" if reviews else "NO_REVIEW"
+        status = CrawlStatus.HAVE_REVIEW if reviews else CrawlStatus.NO_REVIEW
         return status, result
 
     def process_company(self, company_url: str) -> Tuple[int, int, int, str]:
-        """
-        Process a single company: crawl and save to database.
-        Uses thread-local session for thread safety.
-        
-        Returns:
-            Tuple of (created_count, updated_count, reviews_created, url)
-        """
         created_count = 0
         updated_count = 0
         reviews_created = 0
-        outsource_linkedin_url = None
         
         # Get thread-local session
-        session = self._get_thread_session()
+        session = self.session
 
         try:
             for page in range(5):
                 url_review = company_url if page == 0 else f"{company_url}?page={page}#reviews"
 
                 status, data = self._crawl_with_retry(url_review)
-                if status in ("TIME_OUT", "ERROR"):
+                if status in (CrawlStatus.TIME_OUT, CrawlStatus.ERROR):
                     break
-                if status == "NO_REVIEW" and page > 0:
+                if status == CrawlStatus.NO_REVIEW and page > 0:
                     break
 
                 # Save outsource company
                 if data.get("outsource_company") and page == 0:
-                    company, created = self._upsert_company(data["outsource_company"], session)
-                    outsource_linkedin_url = data["outsource_company"].get("linkedin_url")
+                    company, created = self._upsert_company(data["outsource_company"])
                     if created:
                         created_count += 1
                     else:
@@ -585,17 +583,17 @@ class ClutchCrawler:
 
                 # Save reviews to ClutchReview table
                 for review_data in data.get("reviews", []):
-                    _, created = self._upsert_review(review_data, outsource_linkedin_url, session)
+                    _, created = self._upsert_review(review_data, company)
                     if created:
                         reviews_created += 1
 
                 time.sleep(random.uniform(SLEEP_MIN, SLEEP_MAX))
             
             # Commit at the end of processing this company
-            self._commit_with_retry(session=session)
+            self._commit_with_retry(session=self.session)
         except Exception as e:
             logger.error(f"Error processing {company_url}: {e}")
-            session.rollback()
+            self.session.rollback()
         finally:
             self._close_thread_session()
 
@@ -603,7 +601,7 @@ class ClutchCrawler:
 
     def _crawl_with_retry(
         self, url: str, max_retry: int = 3, backoff_base: float = 0.8
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> Tuple[CrawlStatus, Dict[str, Any]]:
         """Crawl with retry logic."""
         for attempt in range(1, max_retry + 1):
             try:
@@ -611,23 +609,25 @@ class ClutchCrawler:
             except Exception as e:
                 logger.error(f"Crawl error (attempt {attempt}): {e}")
                 if attempt == max_retry:
-                    return "ERROR", {}
+                    return CrawlStatus.ERROR, {}
                 time.sleep((backoff_base ** attempt) + random.uniform(0.05, 0.25))
-        return "TIME_OUT", {}
+        return CrawlStatus.TIME_OUT, {}
 
     def run(
         self,
         start_url: str = DEFAULT_START_URL,
-        max_pages: int = 100,
-        workers: int = 8,
-        flush_every: int = 50,
+        max_pages: int = 2,
+        start_page: int = 1,
+        end_page: Optional[int] = None,
     ) -> Dict[str, int]:
         """
         Main crawl runner.
         
         Args:
             start_url: Base directory URL
-            max_pages: Maximum pages to crawl
+            max_pages: Maximum pages to crawl (used if end_page is not set)
+            start_page: First page number to crawl (1-based)
+            end_page: Last page number to crawl (inclusive)
             workers: Number of concurrent workers
             flush_every: Commit to DB every N companies
         
@@ -639,37 +639,36 @@ class ClutchCrawler:
         total_reviews_created = 0
         processed_urls = set()
 
-        for page_num in range(1, max_pages + 1):
+        if end_page is None:
+            end_page = start_page + max_pages - 1
+
+        for page_num in range(start_page, end_page + 1):
             page_url = start_url if page_num == 1 else f"{start_url}?page={page_num}"
-            
+
             company_urls = self.get_company_urls(page_url)
             if not company_urls:
                 logger.warning(f"No companies found on page {page_num}. Stopping.")
                 break
-
-            company_urls = [u for u in company_urls if u not in processed_urls]
-            company_urls = company_urls[:5]
-            logger.info(f"Page {page_num}: {len(company_urls)} companies to process")
-
+            print(f"---------->>>>  Page {page_num}: {len(company_urls)} company URLs found")
             batch_created = 0
             batch_updated = 0
             batch_reviews = 0
-            
-            with ThreadPoolExecutor(max_workers=workers) as ex:
-                futures = [ex.submit(self.process_company, url) for url in company_urls]
-                
-                pbar = tqdm(as_completed(futures), total=len(futures), desc=f"Page {page_num}")
-                for i, fut in enumerate(pbar):
-                    created, updated, reviews_created, url = fut.result()
-                    batch_created += created
-                    batch_updated += updated
-                    batch_reviews += reviews_created
-                    processed_urls.add(url)
-                    # Note: commits now happen per-thread in process_company
+
+            pbar = tqdm(company_urls, total=len(company_urls), desc=f"Page {page_num}")
+            for company_url in pbar:
+                created, updated, reviews_created, url = self.process_company(company_url)
+                batch_created += created
+                batch_updated += updated
+                batch_reviews += reviews_created
+                processed_urls.add(url)
+
             total_created += batch_created
             total_updated += batch_updated
             total_reviews_created += batch_reviews
-            logger.info(f"Page {page_num} done: {batch_created} created, {batch_updated} updated, {batch_reviews} reviews")
+            logger.info(
+                f"Page {page_num} done: {batch_created} created, "
+                f"{batch_updated} updated, {batch_reviews} reviews"
+            )
 
         return {
             "created": total_created,
