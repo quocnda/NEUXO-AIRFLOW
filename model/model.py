@@ -137,6 +137,32 @@ Index("idx_company_is_blacklist", LinkedinCompany.is_blacklist)
 Index("idx_company_created_at", LinkedinCompany.created_at)
 Index("idx_company_updated_at", LinkedinCompany.updated_at)
 
+
+
+class MasterCompanies(Base, TimestampMixin):
+    __tablename__ = "Companies_Master"
+    
+    id = Column(String(36), primary_key=True, default=uuid_str)
+    
+    company_id = Column(String(36), ForeignKey("Linkedin_Companies.id"), nullable=False)
+    company = relationship("LinkedinCompany", lazy="joined")
+    
+    trigger = Column(JSON, nullable=True, default=list)
+    contact = Column(Boolean, default=False)
+    funding_amount = Column(String, nullable=True)
+    total_score = Column(Float, nullable=True)
+    trigger_score = Column(Float, nullable=True)
+    recommendation_score = Column(Float, nullable=True)
+
+    trigger_time = Column(DateTime, default=datetime.now)
+    
+    lst_email_contact = Column(JSON, nullable=True, default=list)
+    user_reach_out = Column(String, nullable=True)
+    
+    # Relationship
+    
+    
+
 class LinkedinJob(Base, TimestampMixin):
     __tablename__ = "Linkedin_Jobs"
 

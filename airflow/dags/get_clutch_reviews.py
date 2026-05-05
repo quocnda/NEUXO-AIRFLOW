@@ -95,3 +95,5 @@ def get_clutch_reviews_dag():
 
         previous_tail >> primary >> retry_1 >> retry_2 >> retry_3
         previous_tail = retry_3
+        
+dag = get_clutch_reviews_dag()

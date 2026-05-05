@@ -18,6 +18,7 @@ import random
 import time
 from enum import Enum
 from typing import Optional, List, Dict, Any, Tuple
+from plugin.Linkedin import getCompanyInfor
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -52,6 +53,7 @@ COMMON_HEADERS = {
 IMP_CHOICES = ["chrome141", "chrome120", "safari17_0"]
 SLEEP_MIN = 0.5
 SLEEP_MAX = 1.5
+HTTP_TIMEOUT = 120.0
 
 
 class CrawlStatus(str, Enum):
@@ -78,7 +80,7 @@ class ClutchCrawler:
         self._SessionFactory = __import__('sqlalchemy.orm', fromlist=['sessionmaker']).sessionmaker(
             bind=self._engine, autoflush=False, autocommit=False
         )
-        self.http_session = creq.Session(headers=COMMON_HEADERS, timeout=30)
+        self.http_session = creq.Session(headers=COMMON_HEADERS, timeout=HTTP_TIMEOUT)
         self._company_cache: Dict[str, Dict[str, Any]] = {}
         import threading
         self._local = threading.local()
@@ -93,16 +95,30 @@ class ClutchCrawler:
         for i in range(max_retries):
             imp = IMP_CHOICES[min(i, len(IMP_CHOICES) - 1)]
             try:
-                r = self.http_session.get(url, impersonate=imp, allow_redirects=True)
+                r = self.http_session.get(
+                    url,
+                    impersonate=imp,
+                    allow_redirects=True,
+                    timeout=HTTP_TIMEOUT,
+                )
                 if r.status_code == 200:
                     return r
-                if r.status_code in (403, 429):
+                if r.status_code in (403, 429, 408, 504):
                     time.sleep(delay + random.uniform(0.5, 1.8))
                     delay *= 1.8
                     continue
                 time.sleep(1.0)
-            except Exception:
-                time.sleep(delay)
+            except Exception as e:
+                timeout_exc = getattr(creq, "Timeout", None)
+                is_timeout = False
+                if timeout_exc and isinstance(e, timeout_exc):
+                    is_timeout = True
+                elif "timeout" in str(e).lower():
+                    is_timeout = True
+                if is_timeout:
+                    time.sleep(delay + random.uniform(0.2, 0.8))
+                else:
+                    time.sleep(delay)
                 delay *= 1.8
         return None
 
@@ -251,7 +267,7 @@ class ClutchCrawler:
         sess = self.session
         website = company_data.get("website")
         name = company_data.get("name")
-        
+        linkedin_url = company_data.get("linkedin_url")
         # Try to find existing company
         company = self._get_company_by_linkedin_company(company_data.get("linkedin_url", None))
         if not company and name:
@@ -287,18 +303,23 @@ class ClutchCrawler:
                     company.note = f"{existing_note}\n{new_note}".strip()
         else:
             # Create new company
-            company = LinkedinCompany(
-                name=name or "Unknown",
-                website=website,
-                description=company_data.get("description"),
-                linkedin_url=company_data.get("linkedin_url"),
-                link_twitter=company_data.get("twitter_url"),
-                size=company_data.get("size"),
-                industry=company_data.get("industry"),
-                labels=company_data.get("services") if isinstance(company_data.get("services"), list) else [],
-                note=company_data.get("note"),
-                is_finding_company="clutch",
-            )
+            company_information = getCompanyInfor(linkedin_url) if linkedin_url else None
+            if company_information:
+                company = LinkedinCompany(
+                    name=name or "Unknown",
+                    website=website,
+                    industry=company_information.get("industry"),
+                    size=company_information.get("size"),
+                    organization_type=company_information.get("organization_type"),
+                    headquarters=company_information.get("headquarters"),
+                    followers=company_information.get("followers"),
+                    avatar_url=company_information.get("avatar_url"),
+                    description=company_information.get("description"),
+                    linkedin_url=linkedin_url,
+                    link_twitter=company_data.get("twitter_url"),
+                    is_finding_company="clutch",
+                    labels=company_data.get("services") if isinstance(company_data.get("services"), list) else []
+                )
             sess.add(company)
             created = True
         
@@ -344,7 +365,7 @@ class ClutchCrawler:
             .first()
         )
 
-    def s_upsert_review(
+    def _upsert_review(
         self,
         review_data: Dict[str, Any],
         company: LinkedinCompany,
