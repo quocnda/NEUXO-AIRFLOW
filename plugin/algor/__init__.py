@@ -1,4 +1,5 @@
 
+from typing import Dict, List, Tuple
 
 SIZE_BUCKETS: Dict[str, Tuple[int, int]] = {
 	"micro": (0, 10),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, List, Optional, Literal, Tuple
+from typing import Dict, List, Optional, Literal, Tuple, Set
 
 import numpy as np
 import pandas as pd
@@ -61,16 +61,34 @@ class TripletEnsembleRecommender:
         self.df_train = df_train.copy()
         self.df_test = df_test.copy()
 
-        train_users = list(ground_truth.keys())
+        if "linkedin_company_outsource" in df_train.columns:
+            print("Using 'linkedin_company_outsource' for validation split")
+            train_users = df_train["linkedin_company_outsource"].dropna().unique().tolist()
+        else:
+            train_users = list(ground_truth.keys())
         np.random.seed(self.random_state)
         np.random.shuffle(train_users)
 
         n_val = int(len(train_users) * validation_split)
         val_users = set(train_users[:n_val])
+        print(f"Using {len(val_users)} users for meta-learner training")
+        self._fit_base_models(df_train, df_test, val_users=val_users)
 
-        self._fit_base_models(df_train, df_test)
+        val_ground_truth: Dict[str, List[str]] = {}
+        if (
+            val_users
+            and "linkedin_company_outsource" in df_train.columns
+            and "triplet" in df_train.columns
+        ):
+            df_val = df_train[df_train["linkedin_company_outsource"].isin(val_users)]
+            if not df_val.empty:
+                val_ground_truth = (
+                    df_val.groupby("linkedin_company_outsource")["triplet"]
+                    .apply(lambda s: s.dropna().astype(str).tolist())
+                    .to_dict()
+                )
 
-        X_meta, y_meta = self._prepare_meta_training_data(val_users, ground_truth)
+        X_meta, y_meta = self._prepare_meta_training_data(val_users, val_ground_truth)
         if len(X_meta) == 0:
             self.is_fitted = False
             return self
@@ -80,22 +98,32 @@ class TripletEnsembleRecommender:
         self.is_fitted = True
         return self
 
-    def _fit_base_models(self, df_train: pd.DataFrame, df_test: pd.DataFrame) -> None:
+    def _fit_base_models(
+        self,
+        df_train: pd.DataFrame,
+        df_test: pd.DataFrame,
+        val_users: Optional[Set[str]] = None,
+    ) -> None:
+        print("Fitting base models...")
+        print(" - Fitting content-based model")
         self.content_model = TripletContentRecommender(
             df_history=df_train,
             df_test=df_test,
             triplet_manager=self.triplet_manager,
             is_use_openai=self.is_use_openai,
             openai_model=self.openai_model,
+            val_user_ids=val_users,
         )
+        print(" - Fitting enhanced content-based model")
         enhanced_handler = EnhancedContentBaseHandler(
             triplet_manager=self.triplet_manager,
             is_use_openai=self.is_use_openai,
             openai_model=self.openai_model,
         )
-        enhanced_handler.fit(df_train, df_test)
+        enhanced_handler.fit(df_train, df_test, val_user_ids=val_users)
         self.enhanced_content_model = enhanced_handler._recommender
 
+        print(" - Fitting user-based collaborative model")
         self.user_collab_model = UserBasedCollaborativeRecommender(
             min_similarity=0.1,
             top_k_similar_users=20,

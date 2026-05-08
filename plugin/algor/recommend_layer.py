@@ -143,6 +143,8 @@ def run_recommendation(
 		return {"error": pd.DataFrame([{"message": "No data available for recommendation."}])}
 
 	users = _unique_users(df_test, limit_users=limit_users)
+	print('Unique users in test data:', len(users))
+	print('Sample users:', users[:5])
 	if not users:
 		return {"error": pd.DataFrame([{"message": "No users found in test data."}])}
 	print('=========== DF Train ===========')
@@ -152,23 +154,23 @@ def run_recommendation(
 	print('=========== DF Test ===========')
 	print(df_test.info())
 	print(df_test.iloc[0])	
-	content_handler = ContentBaseHandler(
-		triplet_manager=triplet_manager,
-		is_use_openai=is_use_openai,
-		openai_model=openai_model,
-	).fit(df_train, df_test)
-	print('=========== Content Handler fitted ===========')
-	enhanced_handler = EnhancedContentBaseHandler(
-		triplet_manager=triplet_manager,
-		is_use_openai=is_use_openai,
-		openai_model=openai_model,
-	).fit(df_train, df_test)
-	print('=========== Enhanced Content Handler fitted ===========')
-	collab_handler = CollaborativeHandler(
-		is_use_openai=is_use_openai,
-		openai_model=openai_model,
-	).fit(df_train, df_train)
-	print('=========== Collaborative Handler fitted ===========')
+	# content_handler = ContentBaseHandler(
+	# 	triplet_manager=triplet_manager,
+	# 	is_use_openai=is_use_openai,
+	# 	openai_model=openai_model,
+	# ).fit(df_train, df_test)
+	# print('=========== Content Handler fitted ===========')
+	# enhanced_handler = EnhancedContentBaseHandler(
+	# 	triplet_manager=triplet_manager,
+	# 	is_use_openai=is_use_openai,
+	# 	openai_model=openai_model,
+	# ).fit(df_train, df_test)
+	# print('=========== Enhanced Content Handler fitted ===========')
+	# collab_handler = CollaborativeHandler(
+	# 	is_use_openai=is_use_openai,
+	# 	openai_model=openai_model,
+	# ).fit(df_train, df_train)
+	# print('=========== Collaborative Handler fitted ===========')
 	ensemble_handler = EnsembleHandler(
 		triplet_manager=triplet_manager,
 		is_use_openai=is_use_openai,
@@ -176,12 +178,13 @@ def run_recommendation(
 	).fit(df_train, df_test, ground_truth)
 
 	results = {
-		"content": _collect_recommendations(content_handler, users, top_k, mode="test"),
-		"enhanced_content": _collect_recommendations(enhanced_handler, users, top_k, mode="test"),
-		"collaborative": _collect_recommendations(collab_handler, users, top_k, exclude_seen=True),
+		# "content": _collect_recommendations(content_handler, users, top_k, mode="test"),
+		# "enhanced_content": _collect_recommendations(enhanced_handler, users, top_k, mode="test"),
+		# "collaborative": _collect_recommendations(collab_handler, users, top_k, exclude_seen=True),
 		"ensemble": _collect_recommendations(ensemble_handler, users, top_k, mode="test"),
 	}
-
+	result = results.get("ensemble", pd.DataFrame())
+	result.to_csv('/home/quocnda/neuxo/data_temp/result_recommendation.csv', index=False)
 	return results
 
 
@@ -312,7 +315,7 @@ def run_online_recommendation_with_scoring(
 		matched_companies: Dict[str, Dict[str, object]] = {}
 		count = 0
 		for _, row in df_recommendation.iterrows():
-			if count == 5: break
+			if count == 10: break
 			count += 1
 			triplet = row.get("triplet")
 			industry, size, specialization = _parse_triplet(triplet)
@@ -480,8 +483,8 @@ def run_online_recommendation_with_scoring(
 		total_with_triggers = int(df_matched["triggers"].apply(bool).sum()) if total_matched else 0
 		avg_total_score = float(df_matched["total_score"].mean()) if total_matched else 0.0
 
-		# session.flush()
-		# session.commit()
+		session.flush()
+		session.commit()
 		return {
 			"recommendation_results": df_recommendation,
 			"matched_companies": df_matched,

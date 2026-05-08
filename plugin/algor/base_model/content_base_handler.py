@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Optional, Literal, List
+from typing import Dict, Optional, Literal, List, Tuple, Set
 import os
 
 import numpy as np
@@ -8,7 +8,6 @@ import pandas as pd
 from scipy import sparse
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.model_selection import train_test_split
 
 
 try:
@@ -85,12 +84,14 @@ class TripletContentRecommender:
         is_use_openai: bool = True,
         openai_model: str = "text-embedding-3-small",
         validation_split: float = 0.2,
+        val_user_ids: Optional[Set[str]] = None,
     ) -> None:
-        if validation_split > 0 and len(df_history) > 1:
-            data_train, data_val = train_test_split(
+        if (val_user_ids and len(df_history) > 1) or (validation_split > 0 and len(df_history) > 1):
+            data_train, data_val = self._split_train_val(
                 df_history,
-                test_size=validation_split,
+                validation_split=validation_split,
                 random_state=42,
+                val_user_ids=val_user_ids,
             )
         else:
             data_train = df_history.copy()
@@ -122,6 +123,51 @@ class TripletContentRecommender:
         self.service_vocab: Optional[List[str]] = None
 
         self._build_features()
+
+    def _split_train_val(
+        self,
+        df: pd.DataFrame,
+        validation_split: float = 0.2,
+        random_state: int = 42,
+        val_user_ids: Optional[Set[str]] = None,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        if df.empty:
+            return df.copy(), df.copy()
+
+        if val_user_ids:
+            if "linkedin_company_outsource" not in df.columns:
+                return df.copy(), df.iloc[0:0].copy()
+            is_val = df["linkedin_company_outsource"].isin(val_user_ids)
+            df_val = df[is_val].copy()
+            df_train = df[~is_val].copy()
+            if df_train.empty:
+                return df.copy(), df.iloc[0:0].copy()
+            return df_train, df_val
+
+        if "linkedin_company_outsource" not in df.columns:
+            df = df.sample(frac=1.0, random_state=random_state).reset_index(drop=True)
+            n_val = max(1, int(len(df) * validation_split))
+            df_val = df.iloc[:n_val].copy()
+            df_train = df.iloc[n_val:].copy()
+            return df_train, df_val
+
+        rng = np.random.RandomState(random_state)
+        train_ratio = 1.0 - validation_split
+        train_parts = []
+        val_parts = []
+        for _, group in df.groupby("linkedin_company_outsource", dropna=False):
+            indices = group.index.to_numpy(copy=True)
+            rng.shuffle(indices)
+            group = group.loc[indices]
+            split_index = int(len(group) * train_ratio)
+            if len(group) >= 2:
+                split_index = max(1, min(split_index, len(group) - 1))
+            train_parts.append(group.iloc[:split_index])
+            val_parts.append(group.iloc[split_index:])
+
+        df_train = pd.concat(train_parts, ignore_index=True) if train_parts else df.copy()
+        df_val = pd.concat(val_parts, ignore_index=True) if val_parts else df.copy()
+        return df_train, df_val
 
     def _build_features(self) -> None:
         self._build_vocabularies(self.data_train)
