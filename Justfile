@@ -38,12 +38,24 @@ typecheck:
     uv run mypy .
 
 airflow:
-    export AIRFLOW_HOME=/home/quocnda/neuxo/airflow-neuxo/airflow
+    AIRFLOW_HOME=/home/quocnda/neuxo/airflow-neuxo/airflow \
+    AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8016 \
     uv run airflow standalone
 
 rerun:
     export AIRFLOW_HOME=/home/quocnda/neuxo/airflow-neuxo/airflow
+    export AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8016
     uv run airflow webserver
+    uv run airflow scheduler
+
+webserver:
+    export AIRFLOW_HOME=/home/quocnda/neuxo/airflow-neuxo/airflow
+    export AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8016
+    uv run airflow webserver
+
+scheduler: 
+    export AIRFLOW_HOME=/home/quocnda/neuxo/airflow-neuxo/airflow
+    export AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8016
     uv run airflow scheduler
 
 clean:

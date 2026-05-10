@@ -4,7 +4,7 @@ from typing import Dict, Optional, List, Set
 
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.preprocessing import StandardScaler
 
 from plugin.algor.base_model.content_base_handler import _TextEmbedder
@@ -32,7 +32,7 @@ class EnhancedTripletEmbedder:
             "categorical": 0.2,
             "numerical": 0.1,
         }
-
+        print('        --  Initializing _TextEmbedder with is_use_openai:', is_use_openai, 'and openai_model:', openai_model)
         self.embedder = _TextEmbedder(
             is_use_openai=is_use_openai,
             openai_model=openai_model,
@@ -47,6 +47,8 @@ class EnhancedTripletEmbedder:
 
         self.scaler = StandardScaler()
         self.pca: Optional[PCA] = None
+        self.pca_batch_size = 1024
+
 
     def _create_size_embeddings(self) -> None:
         size_buckets = ["micro", "small", "medium", "large", "enterprise", "unknown"]
@@ -179,11 +181,20 @@ class EnhancedTripletEmbedder:
         )
 
         if self.fusion_method == "concat" and combined.shape[1] > self.embedding_dim * 2:
+            print('        --  Applying PCA for dimensionality reduction from', combined.shape[1], 'to', self.embedding_dim * 2)
             if self.pca is None:
+                print('        --  Fitting PCA for the first time')
                 n_components = min(self.embedding_dim, combined.shape[1] - 1, combined.shape[0] - 1)
-                self.pca = PCA(n_components=n_components, random_state=42)
-                combined = self.pca.fit_transform(combined)
+                self.pca = IncrementalPCA(n_components=n_components, batch_size=self.pca_batch_size)
+                total_rows = combined.shape[0]
+                for start in range(0, total_rows, self.pca_batch_size):
+                    end = min(start + self.pca_batch_size, total_rows)
+                    print(f'        --  PCA partial_fit rows {start + 1}-{end}/{total_rows}')
+                    self.pca.partial_fit(combined[start:end])
+                print('        --  PCA transform after fit')
+                combined = self.pca.transform(combined)
             else:
+                print('        --  Transforming data using existing PCA')
                 combined = self.pca.transform(combined)
 
         return combined
@@ -206,12 +217,18 @@ class EnhancedTripletEmbedder:
         return self
 
     def transform(self, df: pd.DataFrame) -> np.ndarray:
+        print('        --  Transforming data with shape:', df.shape)
         text_emb = self._encode_text_fields(df)
+        print('        --  Finished encoding text fields, resulting shape:', text_emb.shape)
         triplet_emb = self._encode_triplet_components(df)
+        print('        --  Finished encoding triplet components, resulting shape:', triplet_emb.shape)
         cat_emb = self._encode_categorical_fields(df)
+        print('        --  Finished encoding categorical fields, resulting shape:', cat_emb.shape)
         num_emb = self._encode_numerical_fields(df, fit=False)
+        print('        --  Finished encoding numerical fields, resulting shape:', num_emb.shape)
 
         final_embeddings = self._fuse_embeddings(text_emb, triplet_emb, cat_emb, num_emb)
+        print('        --  Finished fusing embeddings, resulting shape:', final_embeddings.shape)
         norms = np.linalg.norm(final_embeddings, axis=1, keepdims=True) + 1e-12
         final_embeddings = final_embeddings / norms
         return final_embeddings.astype(np.float32)
@@ -245,6 +262,7 @@ class EnhancedTripletContentRecommender:
         self.triplet_manager = triplet_manager
 
         embedding_config = embedding_config or {}
+        print('        --  Initializing EnhancedTripletEmbedder with config:', embedding_config)
         self.embedder = EnhancedTripletEmbedder(
             triplet_manager=triplet_manager,
             sentence_model_name=embedding_config.get("sentence_model_name", "all-MiniLM-L6-v2"),
@@ -254,11 +272,15 @@ class EnhancedTripletContentRecommender:
             is_use_openai=is_use_openai,
             openai_model=openai_model,
         )
-
+        print('        -- Fitting embedder on training data with shape:', self.data_train.shape)
         self.embedder.fit(self.data_train)
+        print('        -- Finished fitting embedder on training data')
         self.X_train = self.embedder.transform(self.data_train)
+        print(f'        -- Finished embedding training data: {self.X_train.shape[0]} samples, {self.X_train.shape[1]} dimensions')
         self.X_val = self.embedder.transform(self.data_val) if not self.data_val.empty else np.zeros((0, 1))
+        print(f'        -- Finished embedding validation data: {self.X_val.shape[0]} samples, {self.X_val.shape[1]} dimensions')
         self.X_test = self.embedder.transform(self.df_test)
+        print(f'        -- Finished embedding test data: {self.X_test.shape[0]} samples, {self.X_test.shape[1]} dimensions')
 
     def build_user_profile(self, user_id: str) -> Optional[np.ndarray]:
         user_history = self.data_train[self.data_train["linkedin_company_outsource"] == user_id]
@@ -347,6 +369,7 @@ class EnhancedContentBaseHandler:
             "categorical": self.embedding_weights.get("location", 0.0),
             "numerical": self.embedding_weights.get("numerical", 0.0),
         }
+        print('        --  Start fitting EnhancedTripletContentRecommender')
         self._recommender = EnhancedTripletContentRecommender(
             df_history=df_train,
             df_test=df_test,

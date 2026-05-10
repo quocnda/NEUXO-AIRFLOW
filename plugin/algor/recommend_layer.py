@@ -308,6 +308,7 @@ def run_online_recommendation_with_scoring(
 			}
 
 		df_recommendation = results.get("ensemble", pd.DataFrame())
+		print('LEN DF RECOMMENDATION:', len(df_recommendation))
 		print(
 			f"[recommendation_with_scoring] recommendation rows={len(df_recommendation)}"
 		)
@@ -372,7 +373,7 @@ def run_online_recommendation_with_scoring(
 				session.query(LinkedinJob)
 				.filter(
 					LinkedinJob.company_id == company.id,
-					LinkedinJob.created_at >= now - timedelta(days=100),
+					# LinkedinJob.created_at >= now - timedelta(days=100),
 				)
 				.count()
 			)
@@ -381,7 +382,7 @@ def run_online_recommendation_with_scoring(
 				.join(EventsList, GuestList.event_id == EventsList.id)
 				.filter(
 					GuestList.company_id == company.id,
-					EventsList.start_date >= now - timedelta(days=100),
+					# EventsList.start_date >= now - timedelta(days=100),
 				)
 				.count()
 			)
@@ -389,7 +390,7 @@ def run_online_recommendation_with_scoring(
 				session.query(NewsInformation)
 				.filter(
 					NewsInformation.company_id == company.id,
-					NewsInformation.time_post >= now - timedelta(days=100),
+					# NewsInformation.time_post >= now - timedelta(days=100),
 				)
 				.count()
 			)
@@ -486,9 +487,6 @@ def run_online_recommendation_with_scoring(
 		session.flush()
 		session.commit()
 		return {
-			"recommendation_results": df_recommendation,
-			"matched_companies": df_matched,
-			"master_companies_updated": df_master,
 			"summary": {
 				"total_matched": total_matched,
 				"total_with_triggers": total_with_triggers,
@@ -498,9 +496,6 @@ def run_online_recommendation_with_scoring(
 	except Exception as exc:
 		print("[recommendation_with_scoring] error:", str(exc))
 		return {
-			"recommendation_results": pd.DataFrame(),
-			"matched_companies": pd.DataFrame(),
-			"master_companies_updated": pd.DataFrame(),
 			"summary": {
 				"total_matched": 0,
 				"total_with_triggers": 0,
